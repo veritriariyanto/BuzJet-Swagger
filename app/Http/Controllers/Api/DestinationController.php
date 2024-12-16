@@ -6,6 +6,7 @@ use App\Models\Destination;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class DestinationController extends Controller
 {
@@ -31,7 +32,7 @@ class DestinationController extends Controller
             'name' => 'required|string|max:255',
             'location_id' => 'required|integer|exists:locations,id',
             'description' => 'required|string|max:1000',
-            'img' => 'required|url',
+            'img' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -42,12 +43,32 @@ class DestinationController extends Controller
             ], 422);
         }
 
-        $destination = Destination::create($request->all());
-        return response()->json([
-            'status' => true,
-            'message' => 'Data berhasil ditambahkan',
-            'data' => $destination,
-        ], 201);
+        try {
+            $image = $request->file('img');
+            $imageName = time() . '.' . $image->getClientOriginalExtension();
+
+            // Store image in storage/app/public/destinations
+            Storage::putFileAs('public/destinations', $image, $imageName);
+
+            $destination = Destination::create([
+                'name' => $request->name,
+                'location_id' => $request->location_id,
+                'description' => $request->description,
+                'img' => 'storage/destinations/' . $imageName,
+            ]);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Data berhasil ditambahkan',
+                'data' => $destination,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Terjadi kesalahan saat mengupload gambar',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
